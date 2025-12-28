@@ -1,52 +1,61 @@
 #!/usr/bin/env python3
+import re
 import pyperclip
 
 
-def indent_nested_code_blocks(text: str, indent: str = "    ") -> str:
-    """Indent fenced code blocks so they remain literal inside an outer fence."""
-    lines = text.splitlines()
-    trailing_newline = text.endswith("\n")
-
-    indented_lines = []
-    inside_fence = False
-    for line in lines:
-        stripped = line.lstrip()
-        if stripped.startswith("```"):
-            indented_lines.append(f"{indent}{line}")
-            inside_fence = not inside_fence
-            continue
-
-        if inside_fence:
-            indented_lines.append(f"{indent}{line}")
-        else:
-            indented_lines.append(line)
-
-    result = "\n".join(indented_lines)
-    if trailing_newline:
-        result += "\n"
-
-    return result
+def max_backtick_run(text: str) -> int:
+    """Return the length of the longest consecutive backtick sequence."""
+    runs = re.findall(r"`+", text)
+    return max((len(r) for r in runs), default=0)
 
 
-def has_outer_code_fence(text: str) -> bool:
-    """Return True when text is already wrapped in a top-level ``` fence."""
-    stripped = text.strip()
-    return stripped.startswith("```") and stripped.endswith("```")
+def wrap_in_code_fence(text: str, language: str = "") -> str:
+    """Wrap text in a code fence, using enough backticks to avoid conflicts."""
+    fence = "`" * max(3, max_backtick_run(text) + 1)
+    content = text.rstrip("\n")
+    return f"\n{fence}{language}\n{content}\n{fence}\n"
 
 
-def add_code_block():
-    """Wrap clipboard contents in a code fence while escaping inner fences."""
-    clipboard_content = pyperclip.paste()
-    if not isinstance(clipboard_content, str):
-        clipboard_content = str(clipboard_content)
+def is_single_fenced_block(text: str) -> bool:
+    """Return True if text is exactly one fenced code block."""
+    lines = text.strip().splitlines()
+    if len(lines) < 2:
+        return False
 
-    if has_outer_code_fence(clipboard_content):
-        # Avoid re-wrapping content that's already fenced (prevents recursion).
-        pyperclip.copy(clipboard_content)
+    fence_pattern = re.compile(r"^(`{3,})(\w*)\s*$")
+    opening_match = fence_pattern.match(lines[0])
+    if not opening_match:
+        return False
+
+    opener = opening_match.group(1)
+    # Closing fence must match or exceed opener length, with no language tag
+    closing_match = re.match(rf"^`{{{len(opener)},}}$", lines[-1].strip())
+    if not closing_match:
+        return False
+
+    # Ensure no other top-level fences in between
+    for line in lines[1:-1]:
+        if re.match(rf"^`{{{len(opener)},}}", line.lstrip()):
+            return False
+
+    return True
+
+
+def add_code_block() -> None:
+    """Wrap clipboard contents in a code fence."""
+    try:
+        content = pyperclip.paste()
+    except pyperclip.PyperclipException as e:
+        print(f"Clipboard error: {e}")
         return
 
-    safe_content = indent_nested_code_blocks(clipboard_content)
-    pyperclip.copy(f"\n```\n{safe_content}\n```\n")
+    if not content.strip():
+        return
+
+    if is_single_fenced_block(content):
+        return
+
+    pyperclip.copy(wrap_in_code_fence(content))
 
 
 if __name__ == "__main__":
