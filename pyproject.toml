@@ -1,0 +1,9 @@
+[project]
+name = "markdown-codeblock"
+version = "0.2.0"
+description = "A tool to wrap clipboard content in markdown code blocks while properly escaping nested code fences."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pyperclip>=1.11.0",
+]
