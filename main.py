@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import re
+from urllib.parse import unquote, urlparse
+
 import pyperclip
 
 
@@ -41,6 +43,31 @@ def is_single_fenced_block(text: str) -> bool:
     return True
 
 
+def decode_file_uri(line: str) -> str | None:
+    """Decode a single file:// URI to a plain path, or None if not one."""
+    parsed = urlparse(line.strip())
+    if parsed.scheme != "file" or not parsed.path:
+        return None
+    # Allow localhost as an authority (RFC 8089); reject remote hosts.
+    if parsed.netloc not in ("", "localhost"):
+        return None
+    return unquote(parsed.path)
+
+
+def decode_file_uris(text: str) -> str:
+    """Convert file:// URIs to plain paths.
+
+    Clipboard managers (e.g. Plasma/KDE) often expose copied files as
+    newline-separated file:// URIs with percent-encoded characters. This
+    strips the protocol header and decodes each URI back to a readable path.
+    """
+    lines = []
+    for line in text.splitlines():
+        decoded = decode_file_uri(line)
+        lines.append(decoded if decoded is not None else line)
+    return "\n".join(lines)
+
+
 def add_code_block() -> None:
     """Wrap clipboard contents in a code fence."""
     try:
@@ -54,6 +81,9 @@ def add_code_block() -> None:
 
     if is_single_fenced_block(content):
         return
+
+    if "file://" in content:
+        content = decode_file_uris(content)
 
     pyperclip.copy(wrap_in_code_fence(content))
 
