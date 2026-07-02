@@ -6,8 +6,9 @@ Small clipboard helper that wraps any selected text in a Markdown code fence whi
 ## Features
 
 1. **Clipboard aware:** Pulls the active clipboard contents via `pyperclip`.
-2. **Nested code block safety:** Detects existing ``` fences and indents their contents so the outer wrapper remains intact.
+2. **Nested code block safety:** Detects the longest run of backticks in the content and uses a longer fence (at least three backticks) so any inner fences stay literal.
 3. **Idempotent:** If your clipboard already contains a fenced block, the script leaves it untouched to avoid double-wrapping.
+4. **`file://` URI decoding:** When the clipboard contains `file://` URIs — as produced by KDE/Plasma and other file managers when you copy one or more files — the protocol header is stripped and percent-encoding is decoded into readable paths before wrapping.
 
 ## Requirements
 
@@ -39,15 +40,33 @@ uv run python main.py
 
 3. Paste the results into your LLM chat or Markdown document.
 
+### Example: copied files
+
+Selecting multiple files in Dolphin (or another KDE/Plasma file manager) and copying them puts `file://` URIs on the clipboard. Running the helper turns this:
+
+```
+file:///home/daniel/Downloads/SCOTUS%20Doubles%20Down%20-%20youtube.com.md
+file:///home/daniel/Downloads/Lawfare%20Live%20June%2026%20-%20youtube.com.md
+```
+
+into:
+
+```
+/home/daniel/Downloads/SCOTUS Doubles Down - youtube.com.md
+/home/daniel/Downloads/Lawfare Live June 26 - youtube.com.md
+```
+
+The same decoding applies to a single copied file. Content with no `file://` URIs is left untouched.
+
 The script will:
 
-- Skip wrapping if the clipboard already starts/ends with ``` to prevent recursion.
-- Indent inner fences so they stay literal.
+- Skip wrapping if the clipboard already contains a single fenced block, to avoid double-wrapping.
+- If `file://` URIs are present, strip the protocol header and percent-decode each line into a plain path (supports the `file://localhost/` form; remote hosts like `file://nas/...` are left untouched).
+- Use a backtick fence long enough to enclose any backticks already in the content.
 - Wrap the final text in a clean fence with blank lines around it for readability.
 
 ## Customization
 
-- **Indent width:** Adjust the default indentation (`indent_nested_code_blocks(indent="    ")`) if you prefer tabs or another width.
 - **Hotkeys:** Map your window manager/terminal launcher to run `uv run python main.py` directly for faster access.
 
 ## Troubleshooting
