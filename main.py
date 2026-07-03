@@ -79,11 +79,19 @@ def add_code_block() -> None:
     if not content.strip():
         return
 
-    if is_single_fenced_block(content):
-        return
+    original = content
 
-    if "file://" in content:
-        content = decode_file_uris(content)
+    # Decode file:// URIs (Plasma/KDE expose copied files this way) before any
+    # fence logic, so URIs are decoded even inside a pre-existing fence.
+    content = decode_file_uris(content) if "file://" in content else content
+
+    # Already a single fenced block: leave it to avoid double-wrapping, unless
+    # the decode step above changed it (e.g. URIs inside a fence), in which
+    # case write the decoded text back.
+    if is_single_fenced_block(content):
+        if content != original:
+            pyperclip.copy(content)
+        return
 
     pyperclip.copy(wrap_in_code_fence(content))
 
