@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import os
 import re
+import shutil
+import subprocess
 from urllib.parse import unquote, urlparse
 
 import pyperclip
@@ -68,6 +71,23 @@ def decode_file_uris(text: str) -> str:
     return "\n".join(lines)
 
 
+def copy_text(text: str) -> None:
+    # Match Pyperclip's Wayland selection so reads and writes use the same backend.
+    if (
+        os.getenv("WAYLAND_DISPLAY")
+        and shutil.which("wl-copy")
+        and shutil.which("wl-paste")
+    ):
+        # MIME detection can mistake plain text for a binary file signature.
+        subprocess.run(
+            ["wl-copy", "--type", "text/plain;charset=utf-8"],
+            input=text.encode("utf-8"),
+            check=True,
+        )
+    else:
+        pyperclip.copy(text)
+
+
 def add_code_block() -> None:
     """Wrap clipboard contents in a code fence."""
     try:
@@ -90,10 +110,10 @@ def add_code_block() -> None:
     # case write the decoded text back.
     if is_single_fenced_block(content):
         if content != original:
-            pyperclip.copy(content)
+            copy_text(content)
         return
 
-    pyperclip.copy(wrap_in_code_fence(content))
+    copy_text(wrap_in_code_fence(content))
 
 
 if __name__ == "__main__":
